@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Custom Chroma Key</title>
+
+<style>
+  body{
+    margin:0;
+    background:#111;
+    color:white;
+    font-family:sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    padding:20px;
+  }
+
+  h1{
+    margin:0;
+  }
+
+  .controls{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    justify-content:center;
+    align-items:center;
+    background:#1e1e1e;
+    padding:12px;
+    border-radius:12px;
+  }
+
+  video, canvas{
+    max-width:90vw;
+    border-radius:12px;
+    background:black;
+  }
+
+  button,input{
+    padding:8px 12px;
+    border:none;
+    border-radius:8px;
+  }
+
+  button{
+    cursor:pointer;
+    background:#4cafef;
+    color:white;
+  }
+
+  .row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+
+  #downloadLink{
+    color:#4cafef;
+  }
+</style>
+</head>
+<body>
+
+<h1>好きな色で背景透過</h1>
+
+<div class="controls">
+
+  <div class="row">
+    <input type="file" id="videoInput" accept="video/*">
+  </div>
+
+  <div class="row">
+    <label>消す色:</label>
+    <input type="color" id="colorPicker" value="#00ff00">
+  </div>
+
+  <div class="row">
+    <label>許容範囲:</label>
+    <input type="range" id="tolerance" min="0" max="255" value="80">
+    <span id="tolValue">80</span>
+  </div>
+
+  <button id="startBtn">処理開始</button>
+  <button id="recordBtn">録画開始</button>
+  <button id="stopBtn">録画停止</button>
+
+</div>
+
+<video id="video" controls></video>
+<canvas id="canvas"></canvas>
+
+<a id="downloadLink"></a>
+
+<script>
+const videoInput = document.getElementById("videoInput");
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d", {
+  willReadFrequently: true
+});
+
+const colorPicker = document.getElementById("colorPicker");
+const toleranceSlider = document.getElementById("tolerance");
+const tolValue = document.getElementById("tolValue");
+
+const startBtn = document.getElementById("startBtn");
+const recordBtn = document.getElementById("recordBtn");
+const stopBtn = document.getElementById("stopBtn");
+
+const downloadLink = document.getElementById("downloadLink");
+
+let animationId;
+let mediaRecorder;
+let recordedChunks = [];
+
+toleranceSlider.addEventListener("input", () => {
+  tolValue.textContent = toleranceSlider.value;
+});
+
+videoInput.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if(file){
+    const url = URL.createObjectURL(file);
+    video.src = url;
+  }
+});
+
+function hexToRgb(hex){
+  const bigint = parseInt(hex.slice(1), 16);
+
+  return {
+    r:(bigint >> 16) & 255,
+    g:(bigint >> 8) & 255,
+    b:bigint & 255
+  };
+}
+
+function processFrame(){
+
+  if(video.paused || video.ended){
+    animationId = requestAnimationFrame(processFrame);
+    return;
+  }
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  ctx.drawImage(video, 0, 0);
+
+  const frame = ctx.getImageData(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  const data = frame.data;
+
+  const key = hexToRgb(colorPicker.value);
+  const tolerance = Number(toleranceSlider.value);
+
+  for(let i = 0; i < data.length; i += 4){
+
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    const distance = Math.sqrt(
+      (r - key.r) ** 2 +
+      (g - key.g) ** 2 +
+      (b - key.b) ** 2
+    );
+
+    if(distance < tolerance){
+      data[i + 3] = 0;
+    }
+
+  }
+
+  ctx.putImageData(frame, 0, 0);
+
+  animationId = requestAnimationFrame(processFrame);
+}
+
+startBtn.addEventListener("click", async () => {
+
+  video.play();
+
+  cancelAnimationFrame(animationId);
+  processFrame();
+
+});
+
+recordBtn.addEventListener("click", () => {
+
+  recordedChunks = [];
+
+  const stream = canvas.captureStream(30);
+
+  mediaRecorder = new MediaRecorder(stream, {
+    mimeType: "video/webm"
+  });
+
+  mediaRecorder.ondataavailable = (e) => {
+    if(e.data.size > 0){
+      recordedChunks.push(e.data);
+    }
+  };
+
+  mediaRecorder.onstop = () => {
+
+    const blob = new Blob(recordedChunks, {
+      type: "video/webm"
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    downloadLink.href = url;
+    downloadLink.download = "transparent-video.webm";
+    downloadLink.textContent = "動画をダウンロード";
+
+  };
+
+  mediaRecorder.start();
+
+});
+
+stopBtn.addEventListener("click", () => {
+
+  if(mediaRecorder){
+    mediaRecorder.stop();
+  }
+
+});
+</script>
+
+</body>
+</html>
