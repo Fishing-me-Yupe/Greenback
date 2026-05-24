@@ -1,154 +1,151 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Custom Chroma Key</title>
+<meta charset="UTF-8">
+<title>透明動画メーカー</title>
 
 <style>
-  body{
-    margin:0;
-    background:#111;
-    color:white;
-    font-family:sans-serif;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:12px;
-    padding:20px;
-  }
+body{
+  background:#111;
+  color:white;
+  font-family:sans-serif;
+  text-align:center;
+  margin:0;
+  padding:20px;
+}
 
-  h1{
-    margin:0;
-  }
+.controls{
+  margin-bottom:15px;
+}
 
-  .controls{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    justify-content:center;
-    align-items:center;
-    background:#1e1e1e;
-    padding:12px;
-    border-radius:12px;
-  }
+canvas{
+  max-width:90vw;
+  border-radius:12px;
 
-  video, canvas{
-    max-width:90vw;
-    border-radius:12px;
-    background:black;
-  }
+  background:
+  linear-gradient(45deg,#999 25%,transparent 25%),
+  linear-gradient(-45deg,#999 25%,transparent 25%),
+  linear-gradient(45deg,transparent 75%,#999 75%),
+  linear-gradient(-45deg,transparent 75%,#999 75%);
 
-  button,input{
-    padding:8px 12px;
-    border:none;
-    border-radius:8px;
-  }
+  background-size:20px 20px;
+  background-position:0 0,0 10px,10px -10px,-10px 0px;
+}
 
-  button{
-    cursor:pointer;
-    background:#4cafef;
-    color:white;
-  }
+button,input{
+  margin:5px;
+  padding:10px;
+  border:none;
+  border-radius:8px;
+}
 
-  .row{
-    display:flex;
-    gap:10px;
-    align-items:center;
-  }
+button{
+  background:#4cafef;
+  color:white;
+  cursor:pointer;
+}
 
-  #downloadLink{
-    color:#4cafef;
-  }
+#download{
+  display:none;
+  font-size:20px;
+  color:#4cafef;
+}
 </style>
 </head>
 <body>
 
-<h1>好きな色で背景透過</h1>
+<h1>好きな色を背景透過</h1>
 
 <div class="controls">
 
-  <div class="row">
-    <input type="file" id="videoInput" accept="video/*">
-  </div>
+<input type="file" id="videoInput" accept="video/*">
 
-  <div class="row">
-    <label>消す色:</label>
-    <input type="color" id="colorPicker" value="#00ff00">
-  </div>
+<br>
 
-  <div class="row">
-    <label>許容範囲:</label>
-    <input type="range" id="tolerance" min="0" max="255" value="80">
-    <span id="tolValue">80</span>
-  </div>
+<label>消す色:</label>
+<input type="color" id="color" value="#00ff00">
 
-  <button id="startBtn">処理開始</button>
-  <button id="recordBtn">録画開始</button>
-  <button id="stopBtn">録画停止</button>
+<br>
+
+<label>強さ:</label>
+<input type="range" id="tol" min="0" max="255" value="80">
+<span id="tolText">80</span>
+
+<br>
+
+<button id="start">開始</button>
 
 </div>
 
-<video id="video" controls></video>
+<video id="video" style="display:none"></video>
 <canvas id="canvas"></canvas>
 
-<a id="downloadLink"></a>
+<br><br>
+
+<a id="download">透明動画をダウンロード</a>
 
 <script>
+
 const videoInput = document.getElementById("videoInput");
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d", {
-  willReadFrequently: true
-});
+const ctx = canvas.getContext("2d",{willReadFrequently:true});
 
-const colorPicker = document.getElementById("colorPicker");
-const toleranceSlider = document.getElementById("tolerance");
-const tolValue = document.getElementById("tolValue");
+const colorInput = document.getElementById("color");
+const tol = document.getElementById("tol");
+const tolText = document.getElementById("tolText");
 
-const startBtn = document.getElementById("startBtn");
-const recordBtn = document.getElementById("recordBtn");
-const stopBtn = document.getElementById("stopBtn");
+const startBtn = document.getElementById("start");
+const download = document.getElementById("download");
 
-const downloadLink = document.getElementById("downloadLink");
-
-let animationId;
 let mediaRecorder;
-let recordedChunks = [];
+let chunks = [];
+let recording = false;
 
-toleranceSlider.addEventListener("input", () => {
-  tolValue.textContent = toleranceSlider.value;
-});
+tol.oninput = ()=>{
+  tolText.textContent = tol.value;
+};
 
-videoInput.addEventListener("change", (e) => {
+videoInput.onchange = e=>{
+
   const file = e.target.files[0];
+
   if(file){
-    const url = URL.createObjectURL(file);
-    video.src = url;
+    video.src = URL.createObjectURL(file);
   }
-});
+
+};
 
 function hexToRgb(hex){
-  const bigint = parseInt(hex.slice(1), 16);
 
-  return {
-    r:(bigint >> 16) & 255,
-    g:(bigint >> 8) & 255,
-    b:bigint & 255
+  const n = parseInt(hex.slice(1),16);
+
+  return{
+    r:(n>>16)&255,
+    g:(n>>8)&255,
+    b:n&255
   };
+
 }
 
-function processFrame(){
+function render(){
 
   if(video.paused || video.ended){
-    animationId = requestAnimationFrame(processFrame);
+
+    if(recording){
+
+      recording = false;
+      mediaRecorder.stop();
+
+    }
+
     return;
   }
 
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
 
-  ctx.drawImage(video, 0, 0);
+  ctx.drawImage(video,0,0);
 
   const frame = ctx.getImageData(
     0,
@@ -159,82 +156,89 @@ function processFrame(){
 
   const data = frame.data;
 
-  const key = hexToRgb(colorPicker.value);
-  const tolerance = Number(toleranceSlider.value);
+  const key = hexToRgb(colorInput.value);
+  const tolerance = Number(tol.value);
 
-  for(let i = 0; i < data.length; i += 4){
+  for(let i=0;i<data.length;i+=4){
 
     const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
+    const g = data[i+1];
+    const b = data[i+2];
 
-    const distance = Math.sqrt(
-      (r - key.r) ** 2 +
-      (g - key.g) ** 2 +
-      (b - key.b) ** 2
+    const dist = Math.sqrt(
+      (r-key.r)**2+
+      (g-key.g)**2+
+      (b-key.b)**2
     );
 
-    if(distance < tolerance){
-      data[i + 3] = 0;
+    if(dist < tolerance){
+
+      data[i+3] = 0;
+
     }
 
   }
 
-  ctx.putImageData(frame, 0, 0);
+  ctx.putImageData(frame,0,0);
 
-  animationId = requestAnimationFrame(processFrame);
+  requestAnimationFrame(render);
+
 }
 
-startBtn.addEventListener("click", async () => {
+startBtn.onclick = async ()=>{
 
-  video.play();
+  if(!video.src){
 
-  cancelAnimationFrame(animationId);
-  processFrame();
+    alert("動画を入れて！");
+    return;
 
-});
+  }
 
-recordBtn.addEventListener("click", () => {
-
-  recordedChunks = [];
+  chunks = [];
 
   const stream = canvas.captureStream(30);
 
-  mediaRecorder = new MediaRecorder(stream, {
-    mimeType: "video/webm"
+  mediaRecorder = new MediaRecorder(stream,{
+    mimeType:"video/webm"
   });
 
-  mediaRecorder.ondataavailable = (e) => {
+  mediaRecorder.ondataavailable = e=>{
+
     if(e.data.size > 0){
-      recordedChunks.push(e.data);
+
+      chunks.push(e.data);
+
     }
+
   };
 
-  mediaRecorder.onstop = () => {
+  mediaRecorder.onstop = ()=>{
 
-    const blob = new Blob(recordedChunks, {
-      type: "video/webm"
+    const blob = new Blob(chunks,{
+      type:"video/webm"
     });
 
     const url = URL.createObjectURL(blob);
 
-    downloadLink.href = url;
-    downloadLink.download = "transparent-video.webm";
-    downloadLink.textContent = "動画をダウンロード";
+    download.href = url;
+    download.download = "transparent-video.webm";
+
+    download.style.display = "inline";
 
   };
 
+  recording = true;
+
   mediaRecorder.start();
 
-});
+  video.currentTime = 0;
 
-stopBtn.addEventListener("click", () => {
+  await video.play();
 
-  if(mediaRecorder){
-    mediaRecorder.stop();
-  }
+  render();
 
-});
+};
+
 </script>
 
 </body>
