@@ -2,38 +2,36 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>透明動画メーカー</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>高画質 背景透過WebM</title>
 
 <style>
 body{
+  margin:0;
+  padding:20px;
   background:#111;
   color:white;
   font-family:sans-serif;
   text-align:center;
-  margin:0;
-  padding:20px;
-}
-
-.controls{
-  margin-bottom:15px;
 }
 
 canvas{
-  max-width:90vw;
+  width:90vw;
+  max-width:960px;
   border-radius:12px;
 
   background:
-  linear-gradient(45deg,#999 25%,transparent 25%),
-  linear-gradient(-45deg,#999 25%,transparent 25%),
-  linear-gradient(45deg,transparent 75%,#999 75%),
-  linear-gradient(-45deg,transparent 75%,#999 75%);
+  linear-gradient(45deg,#888 25%,transparent 25%),
+  linear-gradient(-45deg,#888 25%,transparent 25%),
+  linear-gradient(45deg,transparent 75%,#888 75%),
+  linear-gradient(-45deg,transparent 75%,#888 75%);
 
   background-size:20px 20px;
-  background-position:0 0,0 10px,10px -10px,-10px 0px;
+  background-position:0 0,0 10px,10px -10px,-10px 0;
 }
 
 button,input{
-  margin:5px;
+  margin:8px;
   padding:10px;
   border:none;
   border-radius:8px;
@@ -45,16 +43,19 @@ button{
   cursor:pointer;
 }
 
-#download{
-  display:none;
-  font-size:20px;
+a{
   color:#4cafef;
+  font-size:20px;
+}
+
+.controls{
+  margin-bottom:20px;
 }
 </style>
 </head>
 <body>
 
-<h1>好きな色を背景透過</h1>
+<h1>HD 30FPS 背景透過WebM</h1>
 
 <div class="controls">
 
@@ -67,43 +68,48 @@ button{
 
 <br>
 
-<label>強さ:</label>
+<label>許容範囲:</label>
 <input type="range" id="tol" min="0" max="255" value="80">
 <span id="tolText">80</span>
 
 <br>
 
-<button id="start">開始</button>
+<button id="start">変換開始</button>
 
 </div>
 
 <video id="video" style="display:none"></video>
+
 <canvas id="canvas"></canvas>
 
 <br><br>
 
-<a id="download">透明動画をダウンロード</a>
+<a id="download"></a>
 
 <script>
 
-const videoInput = document.getElementById("videoInput");
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d",{willReadFrequently:true});
 
+const videoInput = document.getElementById("videoInput");
+
 const colorInput = document.getElementById("color");
+
 const tol = document.getElementById("tol");
 const tolText = document.getElementById("tolText");
 
 const startBtn = document.getElementById("start");
+
 const download = document.getElementById("download");
 
-let mediaRecorder;
+let recorder;
 let chunks = [];
-let recording = false;
 
 tol.oninput = ()=>{
+
   tolText.textContent = tol.value;
+
 };
 
 videoInput.onchange = e=>{
@@ -111,7 +117,9 @@ videoInput.onchange = e=>{
   const file = e.target.files[0];
 
   if(file){
+
     video.src = URL.createObjectURL(file);
+
   }
 
 };
@@ -132,20 +140,22 @@ function render(){
 
   if(video.paused || video.ended){
 
-    if(recording){
-
-      recording = false;
-      mediaRecorder.stop();
-
-    }
-
+    recorder.stop();
     return;
+
   }
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  // フルHD固定
+  canvas.width = 1920;
+  canvas.height = 1080;
 
-  ctx.drawImage(video,0,0);
+  ctx.drawImage(
+    video,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
   const frame = ctx.getImageData(
     0,
@@ -157,6 +167,7 @@ function render(){
   const data = frame.data;
 
   const key = hexToRgb(colorInput.value);
+
   const tolerance = Number(tol.value);
 
   for(let i=0;i<data.length;i+=4){
@@ -173,6 +184,7 @@ function render(){
 
     if(dist < tolerance){
 
+      // 完全透過
       data[i+3] = 0;
 
     }
@@ -189,20 +201,23 @@ startBtn.onclick = async ()=>{
 
   if(!video.src){
 
-    alert("動画を入れて！");
+    alert("動画を選択して！");
     return;
 
   }
 
   chunks = [];
 
+  // 30FPS固定
   const stream = canvas.captureStream(30);
 
-  mediaRecorder = new MediaRecorder(stream,{
-    mimeType:"video/webm"
+  // 高画質録画
+  recorder = new MediaRecorder(stream,{
+    mimeType:"video/webm;codecs=vp9",
+    videoBitsPerSecond:16000000
   });
 
-  mediaRecorder.ondataavailable = e=>{
+  recorder.ondataavailable = e=>{
 
     if(e.data.size > 0){
 
@@ -212,7 +227,7 @@ startBtn.onclick = async ()=>{
 
   };
 
-  mediaRecorder.onstop = ()=>{
+  recorder.onstop = ()=>{
 
     const blob = new Blob(chunks,{
       type:"video/webm"
@@ -221,19 +236,18 @@ startBtn.onclick = async ()=>{
     const url = URL.createObjectURL(blob);
 
     download.href = url;
-    download.download = "transparent-video.webm";
+    download.download = "transparent-hd.webm";
 
-    download.style.display = "inline";
+    download.textContent =
+      "高画質WebMをダウンロード";
 
   };
-
-  recording = true;
-
-  mediaRecorder.start();
 
   video.currentTime = 0;
 
   await video.play();
+
+  recorder.start();
 
   render();
 
