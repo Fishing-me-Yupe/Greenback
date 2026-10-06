@@ -3,308 +3,345 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>透過動画メーカー Ultimate</title>
+<title>透過動画・リアルタイムクロマキーメーカー Pro</title>
 
 <style>
-body{
-  margin:0;
-  padding:20px;
-  background:#111;
-  color:white;
-  font-family:sans-serif;
-  text-align:center;
+body {
+  margin: 0;
+  padding: 20px;
+  background: #111;
+  color: white;
+  font-family: sans-serif;
+  text-align: center;
 }
 
-canvas{
-  width:90vw;
-  max-width:1100px;
-  border-radius:12px;
+canvas {
+  width: 90vw;
+  max-width: 1100px;
+  border-radius: 12px;
 
+  /* チェッカー柄背景（透過確認用） */
   background:
-  linear-gradient(45deg,#888 25%,transparent 25%),
-  linear-gradient(-45deg,#888 25%,transparent 25%),
-  linear-gradient(45deg,transparent 75%,#888 75%),
-  linear-gradient(-45deg,transparent 75%,#888 75%);
-
-  background-size:20px 20px;
-  background-position:0 0,0 10px,10px -10px,-10px 0;
+    linear-gradient(45deg, #888 25%, transparent 25%),
+    linear-gradient(-45deg, #888 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #888 75%),
+    linear-gradient(-45deg, transparent 75%, #888 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
 }
 
-button,input,select{
-  margin:8px;
-  padding:10px;
-  border:none;
-  border-radius:8px;
+button, input, select {
+  margin: 6px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
 }
 
-button{
-  background:#4cafef;
-  color:white;
-  cursor:pointer;
+button {
+  background: #4cafef;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
 }
 
-a{
-  color:#4cafef;
-  font-size:20px;
+button:hover {
+  background: #3693d4;
 }
 
-.controls{
-  margin-bottom:20px;
+button.accent {
+  background: #e91e63;
+}
+
+a {
+  color: #4cafef;
+  font-size: 18px;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.controls {
+  margin-bottom: 20px;
+  background: #222;
+  padding: 15px;
+  border-radius: 12px;
+  display: inline-block;
+  text-align: left;
+  max-width: 800px;
+}
+
+.control-group {
+  margin: 10px 0;
+}
+
+label {
+  display: inline-block;
+  width: 140px;
+  font-weight: bold;
 }
 </style>
 </head>
 <body>
 
-<h1>2K 60FPS 透過動画メーカー</h1>
+<h1>2K 60FPS 透過動画・画面切り抜きメーカー Pro</h1>
 
 <div class="controls">
+  <div class="control-group">
+    <label>入力ソース:</label>
+    <input type="file" id="videoInput" accept="video/*">
+    <span>または</span>
+    <button id="screenBtn" class="accent">画面共有を開始 (OBS / Tab)</button>
+  </div>
 
-<input type="file" id="videoInput" accept="video/*">
+  <hr style="border-color:#444;">
 
-<br>
+  <div class="control-group">
+    <label>消す色:</label>
+    <input type="color" id="color" value="#00ff00">
+  </div>
 
-<label>消す色:</label>
-<input type="color" id="color" value="#00ff00">
+  <div class="control-group">
+    <label>許容範囲 (Cutoff):</label>
+    <input type="range" id="tol" min="0" max="255" value="60">
+    <span id="tolText">60</span>
+  </div>
 
-<br>
+  <div class="control-group">
+    <label>エッジぼかし (Feather):</label>
+    <input type="range" id="feather" min="1" max="100" value="30">
+    <span id="featherText">30</span>
+  </div>
 
-<label>許容範囲:</label>
-<input type="range" id="tol" min="0" max="255" value="80">
-<span id="tolText">80</span>
+  <div class="control-group">
+    <label>色かぶり補正 (Spill):</label>
+    <input type="checkbox" id="spill" checked> 色反射の緑/青みを抑える
+  </div>
 
-<br>
+  <hr style="border-color:#444;">
 
-<label>保存形式:</label>
-
-<select id="format">
-  <option value="webm">WebM (高速・透明対応)</option>
-  <option value="mov">MOV (Canva向け)</option>
-</select>
-
-<br>
-
-<button id="start">変換開始</button>
-
+  <div class="control-group">
+    <label>保存形式:</label>
+    <select id="format">
+      <option value="webm">WebM (高速・透明対応)</option>
+      <option value="mov">MOV (Canva/QuickTime向け)</option>
+    </select>
+    <button id="start">録画開始</button>
+    <button id="stop" disabled>録画停止</button>
+  </div>
 </div>
 
-<video id="video" style="display:none"></video>
+<br>
 
+<video id="video" style="display:none" playsinline muted></video>
 <canvas id="canvas"></canvas>
 
 <br><br>
-
 <a id="download"></a>
 
 <script>
-
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
-
-const ctx = canvas.getContext("2d",{
-  willReadFrequently:true
-});
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
 const videoInput = document.getElementById("videoInput");
+const screenBtn = document.getElementById("screenBtn");
 
 const colorInput = document.getElementById("color");
-
 const tol = document.getElementById("tol");
 const tolText = document.getElementById("tolText");
+const feather = document.getElementById("feather");
+const featherText = document.getElementById("featherText");
+const spillCheck = document.getElementById("spill");
 
 const startBtn = document.getElementById("start");
-
+const stopBtn = document.getElementById("stop");
 const download = document.getElementById("download");
-
-const formatSelect =
-  document.getElementById("format");
+const formatSelect = document.getElementById("format");
 
 let recorder;
 let chunks = [];
 let animationId;
-
-// ===== 設定 =====
+let isScreenSharing = false;
 
 const OUTPUT_WIDTH = 2560;
 const OUTPUT_HEIGHT = 1440;
-
 const OUTPUT_FPS = 60;
-
 const VIDEO_BITRATE = 40000000;
 
-// =================
+tol.oninput = () => { tolText.textContent = tol.value; };
+feather.oninput = () => { featherText.textContent = feather.value; };
 
-tol.oninput = ()=>{
-
-  tolText.textContent = tol.value;
-
-};
-
-videoInput.onchange = e=>{
-
+// ファイル選択時の処理
+videoInput.onchange = e => {
+  stopScreenShare();
   const file = e.target.files[0];
-
-  if(file){
-
+  if (file) {
+    video.srcObject = null;
     video.src = URL.createObjectURL(file);
-
+    video.loop = true;
+    video.play().then(() => {
+      startProcessing();
+    });
   }
-
 };
 
-function hexToRgb(hex){
+// 画面共有（ブラウザタブ / アプリ / ディスプレイ）の処理
+screenBtn.onclick = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: { ideal: OUTPUT_FPS, max: OUTPUT_FPS } },
+      audio: false
+    });
+    
+    video.src = "";
+    video.srcObject = stream;
+    isScreenSharing = true;
+    
+    stream.getVideoTracks()[0].onended = () => {
+      stopScreenShare();
+    };
 
-  const n = parseInt(hex.slice(1),16);
+    await video.play();
+    startProcessing();
+  } catch (err) {
+    console.error("画面共有の取得に失敗しました:", err);
+  }
+};
 
-  return{
-    r:(n>>16)&255,
-    g:(n>>8)&255,
-    b:n&255
-  };
-
+function stopScreenShare() {
+  if (video.srcObject) {
+    const tracks = video.srcObject.getTracks();
+    tracks.forEach(track => track.stop());
+    video.srcObject = null;
+  }
+  isScreenSharing = false;
 }
 
-function render(){
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return {
+    r: (n >> 16) & 255,
+    g: (n >> 8) & 255,
+    b: n & 255
+  };
+}
 
-  if(video.paused || video.ended){
-
-    cancelAnimationFrame(animationId);
-
-    recorder.stop();
-
+// 描画ループとアルファ切り抜き処理
+function render() {
+  if (video.paused || video.ended) {
+    animationId = requestAnimationFrame(render);
     return;
-
   }
 
   canvas.width = OUTPUT_WIDTH;
   canvas.height = OUTPUT_HEIGHT;
 
-  ctx.drawImage(
-    video,
-    0,
-    0,
-    OUTPUT_WIDTH,
-    OUTPUT_HEIGHT
-  );
+  ctx.drawImage(video, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
 
-  const frame = ctx.getImageData(
-    0,
-    0,
-    OUTPUT_WIDTH,
-    OUTPUT_HEIGHT
-  );
-
+  const frame = ctx.getImageData(0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
   const data = frame.data;
 
   const key = hexToRgb(colorInput.value);
+  const cutoff = Number(tol.value);
+  const featherVal = Number(feather.value);
+  const maxDist = cutoff + featherVal;
+  const doSpill = spillCheck.checked;
 
-  const tolerance = Number(tol.value);
-
-  for(let i=0;i<data.length;i+=4){
-
+  for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
-    const g = data[i+1];
-    const b = data[i+2];
+    const g = data[i + 1];
+    const b = data[i + 2];
 
+    // ユークリッド距離で色差を計算
     const dist = Math.sqrt(
-      (r-key.r)**2+
-      (g-key.g)**2+
-      (b-key.b)**2
+      (r - key.r) ** 2 +
+      (g - key.g) ** 2 +
+      (b - key.b) ** 2
     );
 
-    if(dist < tolerance){
-
-      data[i+3] = 0;
-
+    if (dist < cutoff) {
+      // 許容範囲内なら完全透明
+      data[i + 3] = 0;
+    } else if (dist < maxDist) {
+      // ぼかし（フェザー）範囲内ならアルファ値を補正（グラデーション透過）
+      const alphaFactor = (dist - cutoff) / featherVal;
+      data[i + 3] = Math.floor(data[i + 3] * alphaFactor);
     }
 
+    // スピル補正（輪郭の緑/青の照り返し除去）
+    if (doSpill && data[i + 3] > 0) {
+      // グリーンバックの場合、G成分がRとBの平均を超えないように補正
+      if (key.g > key.r && key.g > key.b) {
+        const maxAllowedG = (r + b) / 2;
+        if (g > maxAllowedG) {
+          data[i + 1] = maxAllowedG;
+        }
+      }
+    }
   }
 
-  ctx.putImageData(frame,0,0);
-
+  ctx.putImageData(frame, 0, 0);
   animationId = requestAnimationFrame(render);
-
 }
 
-startBtn.onclick = async ()=>{
+function startProcessing() {
+  if (animationId) cancelAnimationFrame(animationId);
+  render();
+}
 
-  if(!video.src){
-
-    alert("動画を選択して！");
+// 録画機能
+startBtn.onclick = () => {
+  if (!video.src && !video.srcObject) {
+    alert("動画または画面共有を選択してください！");
     return;
-
   }
 
   chunks = [];
-
   canvas.width = OUTPUT_WIDTH;
   canvas.height = OUTPUT_HEIGHT;
 
-  const stream = canvas.captureStream(
-    OUTPUT_FPS
-  );
+  const stream = canvas.captureStream(OUTPUT_FPS);
+  const selectedFormat = formatSelect.value;
+  const mimeType = "video/webm;codecs=vp9";
 
-  const selectedFormat =
-    formatSelect.value;
+  try {
+    recorder = new MediaRecorder(stream, {
+      mimeType,
+      videoBitsPerSecond: VIDEO_BITRATE
+    });
+  } catch (e) {
+    alert("VP9形式の標準録画に対応していません");
+    return;
+  }
 
-  let mimeType =
-    "video/webm;codecs=vp9";
-
-  recorder = new MediaRecorder(stream,{
-
-    mimeType,
-
-    videoBitsPerSecond:
-      VIDEO_BITRATE
-
-  });
-
-  recorder.ondataavailable = e=>{
-
-    if(e.data.size > 0){
-
+  recorder.ondataavailable = e => {
+    if (e.data.size > 0) {
       chunks.push(e.data);
-
     }
-
   };
 
-  recorder.onstop = ()=>{
-
-    let extension = "webm";
-
-    if(selectedFormat === "mov"){
-
-      extension = "mov";
-
-    }
-
-    const blob = new Blob(chunks,{
-      type:"video/webm"
-    });
-
+  recorder.onstop = () => {
+    let extension = selectedFormat === "mov" ? "mov" : "webm";
+    const blob = new Blob(chunks, { type: "video/webm" });
     const url = URL.createObjectURL(blob);
 
     download.href = url;
-
-    download.download =
-      "transparent-video." + extension;
-
-    download.textContent =
-      extension.toUpperCase() +
-      "をダウンロード";
-
+    download.download = "transparent-video." + extension;
+    download.textContent = extension.toUpperCase() + "をダウンロード";
   };
 
-  video.currentTime = 0;
-
-  await video.play();
-
   recorder.start(100);
-
-  render();
-
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
 };
 
+stopBtn.onclick = () => {
+  if (recorder && recorder.state !== "inactive") {
+    recorder.stop();
+  }
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+};
 </script>
 
 </body>
