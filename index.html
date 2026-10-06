@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>2K 60FPS 透過動画・画面切り抜きメーカー Pro</title>
+<title>透過画像・動画メーカー Ultimate Pro</title>
 
 <style>
 body {
@@ -15,12 +15,34 @@ body {
   text-align: center;
 }
 
+.tab-container {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.tab-btn {
+  background: #333;
+  color: #aaa;
+  font-size: 16px;
+  padding: 10px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid #444;
+  font-weight: bold;
+}
+
+.tab-btn.active {
+  background: #4cafef;
+  color: white;
+  border-color: #4cafef;
+}
+
 canvas {
   width: 90vw;
   max-width: 1100px;
   border-radius: 12px;
-
-  /* チェッカー柄背景（透過確認用） */
   background:
     linear-gradient(45deg, #888 25%, transparent 25%),
     linear-gradient(-45deg, #888 25%, transparent 25%),
@@ -54,48 +76,76 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button.accent {
-  background: #e91e63;
-}
-
-a {
-  color: #4cafef;
-  font-size: 18px;
-  font-weight: bold;
-  text-decoration: none;
-}
+button.accent { background: #e91e63; }
+button.camera { background: #2196F3; }
+button.save-photos { background: #FF9800; }
+button.save-file { background: #4CAF50; }
 
 .controls {
   margin-bottom: 20px;
   background: #222;
-  padding: 15px;
+  padding: 20px;
   border-radius: 12px;
   display: inline-block;
   text-align: left;
   max-width: 800px;
+  width: 90%;
+  box-sizing: border-box;
 }
 
 .control-group {
-  margin: 10px 0;
+  margin: 12px 0;
 }
 
 label {
   display: inline-block;
-  width: 140px;
+  width: 150px;
   font-weight: bold;
+}
+
+.mode-section {
+  display: none;
+}
+
+.mode-section.active {
+  display: block;
+}
+
+.save-options {
+  background: #333;
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 10px;
 }
 </style>
 </head>
 <body>
 
-<h1>2K 60FPS 透過動画・画面切り抜きメーカー Pro</h1>
+<h1>透過処理ツール Pro (画像 & 動画)</h1>
+
+<div class="tab-container">
+  <button class="tab-btn active" onclick="switchMode('image')">🖼️ 画像モード</button>
+  <button class="tab-btn" onclick="switchMode('video')">🎥 動画 / 画面共有モード</button>
+</div>
 
 <div class="controls">
-  <div class="control-group">
-    <label>入力ソース:</label>
-    <input type="file" id="videoInput" accept="video/*">
-    <span>または</span>
-    <button id="screenBtn" class="accent">画面共有を開始 (OBS / Tab)</button>
+  <!-- 画像モード入力 -->
+  <div id="imageModeSection" class="mode-section active">
+    <div class="control-group">
+      <label>画像ファイル:</label>
+      <input type="file" id="imageInput" accept="image/*">
+    </div>
+  </div>
+
+  <!-- 動画モード入力 -->
+  <div id="videoModeSection" class="mode-section">
+    <div class="control-group">
+      <label>入力ソース:</label>
+      <input type="file" id="videoInput" accept="video/*">
+      <br>
+      <button id="screenBtn" class="accent">画面共有を開始 (PC)</button>
+      <button id="camBtn" class="camera">カメラ起動 (iPad / Webカメラ)</button>
+    </div>
   </div>
 
   <hr style="border-color:#444;">
@@ -124,14 +174,33 @@ label {
 
   <hr style="border-color:#444;">
 
-  <div class="control-group">
-    <label>保存形式:</label>
-    <select id="format">
-      <option value="webm">WebM (高速・透明対応)</option>
-      <option value="mov">MOV (Canva/QuickTime向け)</option>
-    </select>
-    <button id="start">録画開始</button>
-    <button id="stop" disabled>録画停止</button>
+  <!-- 画像保存選択エリア -->
+  <div id="imageSaveSection" class="mode-section active">
+    <div class="control-group save-options">
+      <label>画像保存方法:</label>
+      <button id="saveImageFileBtn" class="save-file">📁 ファイルへ保存 (PNG)</button>
+      <button id="saveImagePhotosBtn" class="save-photos">📱 写真アプリへ保存 / 共有</button>
+    </div>
+  </div>
+
+  <!-- 動画保存選択エリア -->
+  <div id="videoSaveSection" class="mode-section">
+    <div class="control-group">
+      <label>保存形式:</label>
+      <select id="format">
+        <option value="webm">WebM (透明対応)</option>
+        <option value="mov">MOV (Canva向け)</option>
+        <option value="mp4">MP4 (iOS写真アプリ向け)</option>
+      </select>
+      <button id="start">録画開始</button>
+      <button id="stop" disabled>録画停止</button>
+    </div>
+
+    <div id="videoResultGroup" class="control-group save-options" style="display:none;">
+      <label>録画完了！保存選択:</label>
+      <button id="saveVideoFileBtn" class="save-file">📁 ファイルへ保存</button>
+      <button id="saveVideoPhotosBtn" class="save-photos">📱 写真アプリへ保存 / 共有</button>
+    </div>
   </div>
 </div>
 
@@ -140,16 +209,17 @@ label {
 <video id="video" style="display:none" playsinline muted></video>
 <canvas id="canvas"></canvas>
 
-<br><br>
-<a id="download"></a>
-
 <script>
-const video = document.getElementById("video");
+let currentMode = "image";
+
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
+const video = document.getElementById("video");
 
+const imageInput = document.getElementById("imageInput");
 const videoInput = document.getElementById("videoInput");
 const screenBtn = document.getElementById("screenBtn");
+const camBtn = document.getElementById("camBtn");
 
 const colorInput = document.getElementById("color");
 const tol = document.getElementById("tol");
@@ -158,105 +228,159 @@ const feather = document.getElementById("feather");
 const featherText = document.getElementById("featherText");
 const spillCheck = document.getElementById("spill");
 
+const saveImageFileBtn = document.getElementById("saveImageFileBtn");
+const saveImagePhotosBtn = document.getElementById("saveImagePhotosBtn");
+
 const startBtn = document.getElementById("start");
 const stopBtn = document.getElementById("stop");
-const download = document.getElementById("download");
 const formatSelect = document.getElementById("format");
+const videoResultGroup = document.getElementById("videoResultGroup");
+const saveVideoFileBtn = document.getElementById("saveVideoFileBtn");
+const saveVideoPhotosBtn = document.getElementById("saveVideoPhotosBtn");
 
+let loadedImage = null;
 let recorder;
 let chunks = [];
 let animationId;
+let currentRecordedBlob = null;
+let currentRecordedExt = "webm";
 
 const OUTPUT_WIDTH = 2560;
 const OUTPUT_HEIGHT = 1440;
 const OUTPUT_FPS = 60;
 const VIDEO_BITRATE = 40000000;
 
-tol.oninput = () => { tolText.textContent = tol.value; };
-feather.oninput = () => { featherText.textContent = feather.value; };
+tol.oninput = () => { tolText.textContent = tol.value; triggerRender(); };
+feather.oninput = () => { featherText.textContent = feather.value; triggerRender(); };
+colorInput.oninput = () => { triggerRender(); };
+spillCheck.onchange = () => { triggerRender(); };
 
-// 動画ファイル選択
+function switchMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.mode-section').forEach(sec => sec.classList.remove('active'));
+
+  if (mode === 'image') {
+    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    document.getElementById('imageModeSection').classList.add('active');
+    document.getElementById('imageSaveSection').classList.add('active');
+    stopVideoSource();
+    triggerRender();
+  } else {
+    document.querySelectorAll('.tab-btn')[1].classList.add('active');
+    document.getElementById('videoModeSection').classList.add('active');
+    document.getElementById('videoSaveSection').classList.add('active');
+    triggerRender();
+  }
+}
+
+// 画像処理
+imageInput.onchange = e => {
+  const file = e.target.files[0];
+  if (file) {
+    const img = new Image();
+    img.onload = () => {
+      loadedImage = img;
+      triggerRender();
+    };
+    img.src = URL.createObjectURL(file);
+  }
+};
+
+// 画像：ファイルへ保存
+saveImageFileBtn.onclick = () => {
+  if (!loadedImage) { alert("画像を読み込んでください。"); return; }
+  const a = document.createElement("a");
+  a.download = "transparent-image.png";
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+};
+
+// 画像：写真アプリ保存（共有シート起動）
+saveImagePhotosBtn.onclick = () => {
+  if (!loadedImage) { alert("画像を読み込んでください。"); return; }
+  canvas.toBlob(async blob => {
+    const file = new File([blob], "transparent-image.png", { type: "image/png" });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: "透過画像",
+          text: "写真アプリの『画像を保存』を選択してください"
+        });
+      } catch (err) {
+        if (err.name !== 'AbortError') alert("共有に失敗しました: " + err.message);
+      }
+    } else {
+      alert("お使いのブラウザは直接の写真アプリ共有に対応していません。画像を長押しするか『ファイルへ保存』をご利用ください。");
+    }
+  }, "image/png");
+};
+
+// 動画処理
 videoInput.onchange = e => {
-  stopScreenShare();
+  stopVideoSource();
   const file = e.target.files[0];
   if (file) {
     video.srcObject = null;
     video.src = URL.createObjectURL(file);
     video.loop = true;
-    video.play().then(() => {
-      startProcessing();
-    }).catch(err => {
-      alert("動画の再生に失敗しました: " + err.message);
-    });
+    video.play().then(() => startVideoProcessing());
   }
 };
 
-// 画面共有（エラーハンドリング付き）
 screenBtn.onclick = async () => {
   if (window.location.protocol === 'file:') {
-    alert("【注意】ファイル直接開き(file://)ではセキュリティ制限により画面共有が動きません。\nGitHub Pagesやローカルサーバー(http://...)経由で開いてください。");
+    alert("file:// では画面共有機能が動作しません。GitHub Pages等をご利用ください。");
     return;
   }
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-    alert("お使いのブラウザは画面共有に対応していません。Chrome/Edge/Firefox等の最新版をご使用ください。");
-    return;
-  }
-
   try {
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: { frameRate: { ideal: OUTPUT_FPS, max: OUTPUT_FPS } },
       audio: false
     });
-
-    stopScreenShare();
+    stopVideoSource();
     video.src = "";
     video.srcObject = stream;
-
-    stream.getVideoTracks()[0].onended = () => {
-      stopScreenShare();
-    };
-
     await video.play();
-    startProcessing();
+    startVideoProcessing();
   } catch (err) {
-    console.error("画面共有エラー:", err);
-    if (err.name !== 'NotAllowedError') {
-      alert("画面共有の取得中にエラーが発生しました: " + err.message);
-    }
+    if (err.name !== 'NotAllowedError') alert("画面共有エラー: " + err.message);
   }
 };
 
-function stopScreenShare() {
+camBtn.onclick = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: "user" },
+      audio: false
+    });
+    stopVideoSource();
+    video.src = "";
+    video.srcObject = stream;
+    await video.play();
+    startVideoProcessing();
+  } catch (err) {
+    alert("カメラ起動エラー: " + err.message);
+  }
+};
+
+function stopVideoSource() {
   if (video.srcObject) {
-    const tracks = video.srcObject.getTracks();
-    tracks.forEach(track => track.stop());
+    video.srcObject.getTracks().forEach(track => track.stop());
     video.srcObject = null;
   }
+  video.pause();
+  if (animationId) cancelAnimationFrame(animationId);
 }
 
 function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);
-  return {
-    r: (n >> 16) & 255,
-    g: (n >> 8) & 255,
-    b: n & 255
-  };
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
-// 描画・切り抜き処理ループ
-function render() {
-  if (video.paused || video.ended) {
-    animationId = requestAnimationFrame(render);
-    return;
-  }
-
-  canvas.width = OUTPUT_WIDTH;
-  canvas.height = OUTPUT_HEIGHT;
-
-  ctx.drawImage(video, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
-
-  const frame = ctx.getImageData(0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
+function processFrame() {
+  const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = frame.data;
 
   const key = hexToRgb(colorInput.value);
@@ -270,11 +394,7 @@ function render() {
     const g = data[i + 1];
     const b = data[i + 2];
 
-    const dist = Math.sqrt(
-      (r - key.r) ** 2 +
-      (g - key.g) ** 2 +
-      (b - key.b) ** 2
-    );
+    const dist = Math.sqrt((r - key.r) ** 2 + (g - key.g) ** 2 + (b - key.b) ** 2);
 
     if (dist < cutoff) {
       data[i + 3] = 0;
@@ -286,59 +406,84 @@ function render() {
     if (doSpill && data[i + 3] > 0) {
       if (key.g > key.r && key.g > key.b) {
         const maxAllowedG = (r + b) / 2;
-        if (g > maxAllowedG) {
-          data[i + 1] = maxAllowedG;
-        }
+        if (g > maxAllowedG) data[i + 1] = maxAllowedG;
       }
     }
   }
 
   ctx.putImageData(frame, 0, 0);
-  animationId = requestAnimationFrame(render);
 }
 
-function startProcessing() {
+function triggerRender() {
+  if (currentMode === 'image') {
+    if (!loadedImage) return;
+    canvas.width = loadedImage.width;
+    canvas.height = loadedImage.height;
+    ctx.drawImage(loadedImage, 0, 0);
+    processFrame();
+  }
+}
+
+function renderVideoLoop() {
+  if (currentMode !== 'video' || video.paused || video.ended) {
+    animationId = requestAnimationFrame(renderVideoLoop);
+    return;
+  }
+
+  canvas.width = OUTPUT_WIDTH;
+  canvas.height = OUTPUT_HEIGHT;
+  ctx.drawImage(video, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
+  processFrame();
+
+  animationId = requestAnimationFrame(renderVideoLoop);
+}
+
+function startVideoProcessing() {
   if (animationId) cancelAnimationFrame(animationId);
-  render();
+  renderVideoLoop();
 }
 
 // 録画制御
 startBtn.onclick = () => {
   if (!video.src && !video.srcObject) {
-    alert("動画ファイルを選択するか、画面共有を開始してください。");
+    alert("動画ソースを選択してください。");
     return;
   }
 
   chunks = [];
+  videoResultGroup.style.display = "none";
   canvas.width = OUTPUT_WIDTH;
   canvas.height = OUTPUT_HEIGHT;
 
   const stream = canvas.captureStream(OUTPUT_FPS);
-  const selectedFormat = formatSelect.value;
-  const mimeType = "video/webm;codecs=vp9";
+  let mimeType = "";
+  const candidateTypes = [
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+    "video/mp4"
+  ];
+
+  for (const type of candidateTypes) {
+    if (MediaRecorder.isTypeSupported(type)) {
+      mimeType = type;
+      break;
+    }
+  }
 
   try {
-    recorder = new MediaRecorder(stream, {
-      mimeType,
-      videoBitsPerSecond: VIDEO_BITRATE
-    });
+    recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: VIDEO_BITRATE });
   } catch (e) {
-    alert("お使いの環境はVP9形式の録画に対応していません。");
+    alert("録画の初期化に失敗しました。");
     return;
   }
 
-  recorder.ondataavailable = e => {
-    if (e.data.size > 0) chunks.push(e.data);
-  };
+  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
 
   recorder.onstop = () => {
-    let extension = selectedFormat === "mov" ? "mov" : "webm";
-    const blob = new Blob(chunks, { type: "video/webm" });
-    const url = URL.createObjectURL(blob);
-
-    download.href = url;
-    download.download = "transparent-video." + extension;
-    download.textContent = extension.toUpperCase() + "をダウンロード";
+    currentRecordedExt = formatSelect.value;
+    currentRecordedBlob = new Blob(chunks, { type: mimeType });
+    videoResultGroup.style.display = "block";
   };
 
   recorder.start(100);
@@ -352,6 +497,35 @@ stopBtn.onclick = () => {
   }
   startBtn.disabled = false;
   stopBtn.disabled = true;
+};
+
+// 動画：ファイル保存
+saveVideoFileBtn.onclick = () => {
+  if (!currentRecordedBlob) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(currentRecordedBlob);
+  a.download = "transparent-video." + currentRecordedExt;
+  a.click();
+};
+
+// 動画：写真アプリ保存（共有シート起動）
+saveVideoPhotosBtn.onclick = async () => {
+  if (!currentRecordedBlob) return;
+  const file = new File([currentRecordedBlob], "transparent-video." + currentRecordedExt, { type: currentRecordedBlob.type });
+
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: "透過動画",
+        text: "写真アプリの『ビデオを保存』を選択してください"
+      });
+    } catch (err) {
+      if (err.name !== 'AbortError') alert("共有に失敗しました: " + err.message);
+    }
+  } else {
+    alert("お使いのブラウザは直接の動画共有に対応していません。『ファイルへ保存』をご利用ください。");
+  }
 };
 </script>
 
